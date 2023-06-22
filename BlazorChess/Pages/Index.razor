@@ -1,0 +1,234 @@
+﻿@page "/"
+
+@using BlazorChess.Pages.dialogs
+@using ChessGame.Engine
+@using ChessGame.Models;
+
+<PageTitle>C Team Chess</PageTitle>
+
+<div class="d-flex flex-row">
+    <div class="d-flex flex-column flex-shrink-0 w-25 h-auto p-4 me-4 chess-gutter">
+        <h3>@(_game.GetCurrentPlayer().Color)'s Turn</h3>
+
+        <div class="d-flex flex-column mt-auto">
+            @if (_game.Status == GameStatus.InProgress)
+            {
+                <button class="btn btn-primary m-1"
+                    @onclick="() => _restartDialog?.Open()">Restart</button>
+                <button class="btn btn-danger m-1" type="button"
+                    @onclick="() => _resignDialog?.Open()">Resign</button>
+            }
+            else
+            {
+                <button class="btn btn-success m-1"
+                    @onclick="() => _game.Reset()">New Game</button>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex align-items-center justify-content-center w-100">
+        <div class="d-flex chess-board-frame">
+            <div class="d-flex flex-column w-100 h-100 chess-board-squares">
+                @for (int rank = 0; rank < 8; rank++)
+                {
+                    <div class="d-flex flex-row flex-grow-1">
+
+                        @for (int file = 0; file < 8; file++)
+                        {
+                            var square = _game.Board.Squares[rank, file];
+                            <div class="d-flex flex-column flex-grow-1 chess-square @(square.Color == SquareColor.White ? "chess-square-white" : "chess-square-black") @(square.IsLegal ? $"chess-square-legal {@MoveTypeToClass(square.Move)}" : string.Empty) @(square.IsSelected ? "chess-square-selected" : string.Empty)"
+                            @onclick="() => MovePiece(square)">
+                            </div>
+                        }       
+
+                    </div>
+                }
+            </div>
+            <div class="d-flex flex-column w-100 h-100 chess-board-pieces">
+                @for (int rank = 0; rank < 8; rank++)
+                {
+                    <div class="d-flex flex-row flex-grow-1">
+
+                        @for (int file = 0; file < 8; file++)
+                        {
+                            var square = _game.Board.Squares[rank, file];
+                            <div class="d-flex flex-column flex-grow-1 @PieceToClass(square.Piece) @(square.Piece?.Color != _game.GetCurrentPlayer().Color ? "chess-piece-not-yours" : string.Empty) @(square.IsSelected ? "chess-piece-selected" : string.Empty)"
+                                @onclick="() => PieceSelected(square)">
+                            </div>
+                        }
+
+                    </div>
+                }
+            </div>
+            @if (_game.Status != GameStatus.InProgress)
+            {
+                <div class="d-flex flex-column w-100 h-100 align-items-center justify-content-center chess-board-overlay">
+                    <div class="d-flex flex-column align-items-center chess-gutter p-4">
+                        <h3>@GetStatusHeadline()</h3>
+                        <h5>@GetReasonString()</h5>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex flex-column flex-shrink-0 w-25 h-auto p-4 ms-4 chess-gutter">
+        <h3>Material</h3>
+        <div class="d-flex flex-row flex-wrap chess-material-row">
+            @foreach(var piece in _game.PlayerBlack.CapturedPieces)
+            {
+                <div class="d-flex flex-column chess-material-piece @PieceToClass(piece)" />
+            }
+        </div>
+        <div class="d-flex flex-row flex-wrap mt-auto chess-material-row">
+            @foreach (var piece in _game.PlayerWhite.CapturedPieces)
+            {
+                <div class="d-flex flex-column chess-material-piece @PieceToClass(piece)" />
+            }
+        </div>
+    </div>
+</div>
+
+<RestartDialog @ref="_restartDialog"
+    OnRestart="RestartGame"/>
+
+<ResignDialog @ref="_resignDialog"
+    OnResign="ResignGame"/>
+
+<PromotionDialog @ref="_promotionDialog"
+    OnPieceChosen="PromotePawn" />
+
+@code {
+    private ChessGame _game { get; set; } = new ChessGame();
+
+    private RestartDialog? _restartDialog;
+    private ResignDialog? _resignDialog;
+    private PromotionDialog? _promotionDialog;
+
+    private void RestartGame()
+    {
+        _game.Reset();
+    }
+
+    private void ResignGame()
+    {
+        _game.Resign();
+    }
+
+    private void PromotePawn(ChessSquare square)
+    {
+        _game.Move(square);
+    }
+
+    private void PieceSelected(ChessSquare square)
+    {
+        if (_game.Status != GameStatus.InProgress)
+            return;
+
+        if (square.Piece?.Color == _game.GetCurrentPlayer().Color)
+            _game.SelectPiece(square);
+        // This is an attack!
+        else if (_game.SelectedSquare is not null)
+            MovePiece(square);
+    }
+
+    private void MovePiece(ChessSquare square)
+    {
+        if (_game.Status != GameStatus.InProgress)
+            return;
+
+        // Special case: Pawn Promotion
+        if (square.Move == MoveType.Promotion)
+        {
+            _promotionDialog?.SetPromotionSquare(_game.SelectedSquare!, square);
+            _promotionDialog?.Open();
+            return;
+        }
+
+        _game.Move(square);
+    }
+
+    private string MoveTypeToClass(MoveType move)
+    {
+        var classStr = "chess-square-";
+
+        classStr += move switch
+        {
+            MoveType.Normal => "normal",
+            MoveType.Capture => "capture",
+            MoveType.Check => "check",
+            MoveType.Castle => "castle",
+            MoveType.Promotion => "promotion",
+            MoveType.EnPassant => "en-passant",
+            _ => "normal"
+        };
+
+        return classStr;
+    }
+
+    private string PieceToClass(ChessPiece? piece)
+    {
+        if (piece is null)
+            return string.Empty;
+
+        var classStr = "chess-piece chess-piece";
+
+        classStr += piece.Type switch
+        {
+            PieceType.King => "-king",
+            PieceType.Queen => "-queen",
+            PieceType.Rook => "-rook",
+            PieceType.Bishop => "-bishop",
+            PieceType.Knight => "-knight",
+            PieceType.Pawn => "-pawn",
+            _ => string.Empty
+        };
+
+        classStr += piece.Color switch
+        {
+            PlayerColor.White => "-white",
+            PlayerColor.Black => "-black",
+            _ => string.Empty
+        };
+
+        return classStr;
+    }
+
+    private string GetStatusHeadline()
+    {
+        var subject = _game.Subject switch
+        {
+            PlayerColor.Black => "Black",
+            PlayerColor.White => "White",
+            _ => string.Empty
+        };
+
+        return _game.Status switch
+        {
+            GameStatus.Checkmate or
+            GameStatus.Resign or
+            GameStatus.Timeout => $"{subject} Wins!",
+            GameStatus.Stalemate => "Stalemate",
+            _ => "Game Over"
+        };
+    }
+
+    private string GetReasonString()
+    {
+        var loser = _game.Subject switch
+        {
+            PlayerColor.Black => "White",
+            PlayerColor.White => "Black",
+            _ => string.Empty
+        };
+
+        return _game.Status switch
+        {
+            GameStatus.Checkmate => "Checkmate",
+            GameStatus.Resign => $"{loser} resigned",
+            GameStatus.Timeout => $"{loser}'s time expired",
+            GameStatus.Stalemate => string.Empty,
+            _ => string.Empty
+        };
+    }
+}

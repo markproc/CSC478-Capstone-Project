@@ -1,0 +1,56 @@
+﻿@using ChessGame.Models;
+@inherits DialogBase
+
+<div class="modal @_modalShow" id="promotion-dialog" tabindex="-1" role="dialog" style="display:@_modalDisplay">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Promotion</h5>
+            </div>
+            <div class="modal-body">
+                <p>Choose a promotion piece!</p>
+                <div class="d-flex flex-row justify-content-around chess-material-row">
+                    <div class="d-flex flex-column chess-material-piece promotion chess-piece-queen-@_pieceColor"
+                        @onclick="() => OnPieceChosenAsync(PieceType.Queen)"/>
+                    <div class="d-flex flex-column chess-material-piece promotion chess-piece-rook-@_pieceColor"
+                         @onclick="() => OnPieceChosenAsync(PieceType.Rook)" />
+                    <div class="d-flex flex-column chess-material-piece promotion chess-piece-bishop-@_pieceColor"
+                         @onclick="() => OnPieceChosenAsync(PieceType.Bishop)" />
+                    <div class="d-flex flex-column chess-material-piece promotion chess-piece-knight-@_pieceColor"
+                         @onclick="() => OnPieceChosenAsync(PieceType.Knight)" />
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_modalShow))
+{
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter]
+    public EventCallback<ChessSquare> OnPieceChosen { get; set; }
+
+    private ChessSquare? _promotionSquare { get; set; }
+    private ChessSquare? _destinationSquare { get; set; }
+
+    private string _pieceColor { get; set; } = string.Empty;
+
+    public void SetPromotionSquare(ChessSquare fromSquare, ChessSquare toSquare)
+    {
+        _promotionSquare = fromSquare;
+        _destinationSquare = toSquare;
+
+        var color = fromSquare.Piece?.Color ?? PlayerColor.White;
+        _pieceColor = color.ToString().ToLower();
+    }
+
+    private async Task OnPieceChosenAsync(PieceType type)
+    {
+        _promotionSquare?.Piece?.Promote(type);
+        await OnPieceChosen.InvokeAsync(_destinationSquare);
+        Close();
+    }
+}
